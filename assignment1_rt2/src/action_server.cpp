@@ -57,6 +57,7 @@ namespace assignment1_rt2{
             rclcpp::TimerBase::SharedPtr timer_{nullptr};
             geometry_msgs::msg::TransformStamped t_;
 
+            // Function to convert goal ID to a hex string for logging purposes
             static std::string goal_id_to_hex_string(const rclcpp_action::GoalUUID & goal_id){
                 std::ostringstream oss;
                 oss << std::hex << std::setfill('0');
@@ -98,7 +99,7 @@ namespace assignment1_rt2{
                 auto result = std::make_shared<Navigation::Result>();
                 geometry_msgs::msg::Twist msg;
 
-                //Rotate to face the goal position
+                //Stage 1: Rotate to face the goal position
                 RCLCPP_INFO(this->get_logger(), "Stage 1: Rotating to face the goal.");
                 double desired_yaw_to_goal = atan2(goal->goal_y - current_pos_y, goal->goal_x - current_pos_x);
                 double angle_diff = desired_yaw_to_goal - current_pos_theta;
@@ -134,7 +135,7 @@ namespace assignment1_rt2{
                 msg.angular.z = 0.0;
                 publisher_->publish(msg);
 
-                // Move towards the goal
+                // Stage 2: Move towards the goal
                 RCLCPP_INFO(this->get_logger(), "Stage 2: Moving towards the goal.");
                 while(std::abs(goal->goal_x - current_pos_x) > 0.2 ||
                     std::abs(goal->goal_y - current_pos_y) > 0.2){
@@ -152,6 +153,7 @@ namespace assignment1_rt2{
                         return;
                     }
 
+                    // Set a speed proportional to the distance from the goal
                     static const double scaleForwardSpeed = 0.5;
                     msg.linear.x = scaleForwardSpeed * sqrt(
                         pow(t_.transform.translation.x, 2) +
@@ -176,7 +178,7 @@ namespace assignment1_rt2{
                 msg.linear.x = 0.0;
                 publisher_->publish(msg);
 
-                // Rotate to the goal orientation
+                // Stage 3: Rotate to the goal orientation
                 RCLCPP_INFO(this->get_logger(), "Stage 3: Rotating to the goal orientation.");
                 while(std::abs(goal->goal_theta - current_pos_theta) > 0.2){
                     // Check if there is a cancel request
@@ -189,6 +191,7 @@ namespace assignment1_rt2{
                         return;
                     }
 
+                    // Set a speed proportional to the remaining angle difference
                     static const double scaleRotationRate = 1.0;
                     msg.angular.z = scaleRotationRate * atan2(
                         t_.transform.translation.y,
@@ -216,6 +219,7 @@ namespace assignment1_rt2{
                 goal_handle->succeed(result);
             }
 
+            // Timer callback to lookup the transform between the robot's current position and the goal position
             void on_timer(){
                 // Store frame names in variables that will be used to compute transformations
                 std::string fromFrameRel = "goal_frame";

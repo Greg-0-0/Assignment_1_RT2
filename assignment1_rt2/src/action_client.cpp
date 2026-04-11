@@ -30,6 +30,7 @@ namespace assignment1_rt2{
             explicit NavigationActionClient(const rclcpp::NodeOptions & options): Node("client_controller", options){
                 this->client_ptr_ = rclcpp_action::create_client<Navigation>( this, "navigation");
 
+                // Subscribe to the topic where the user interface publishes the goal pose and call goal_pose_callback on each message
                 subscription_ = this->create_subscription<action_tutorials_interfaces::msg::Pose2D>(
                     "goal_pose", 10, std::bind(&NavigationActionClient::goal_pose_callback, this, std::placeholders::_1));
             }

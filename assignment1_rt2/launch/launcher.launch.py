@@ -5,6 +5,7 @@ from launch_ros.descriptions import ComposableNode
 # two separate containers to allow the client two input data using stdin, however this way memory isn't shared anymore
 
 def generate_launch_description():
+    
     action_container = ComposableNodeContainer(
         name='action_container',
         namespace='',
@@ -27,7 +28,6 @@ def generate_launch_description():
         emulate_tty=True,
         prefix='xterm -e',
     )
-
     
     user_interface_container = ComposableNodeContainer(
         name='user_interface_container',

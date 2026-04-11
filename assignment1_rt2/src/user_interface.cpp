@@ -37,9 +37,9 @@ namespace assignment1_rt2{
             rclcpp::Publisher<Pose2D>::SharedPtr publisher2_;
             rclcpp::TimerBase::SharedPtr startup_timer_;
 
-
+            // Implementation for getting goal info from user and publishing it as a 2DPose message and 
+            // as an Odometry message for the broadcaster to pick it up
             void get_goal_info_from_user(){
-                // Implementation for getting goal info from user
                 Pose2D goal_info;
                 RCLCPP_INFO(this->get_logger(),"Enter a goal position for the robot (x y theta) or q to quit: ");
                 std::string input;
@@ -57,10 +57,12 @@ namespace assignment1_rt2{
                         return get_goal_info_from_user();
                     }
                 }
+
                 // Publish the goal as a 2DPose message
                 publisher2_->publish(goal_info);
-                // Also publish the goal frame as an Odometry message for the broadcaster to pick it up and 
-                // publish the corresponding transform
+
+                // Also publish the goal frame as an Odometry message for the broadcaster of the goal_frame 
+                // to pick it up and publish the corresponding transform
                 nav_msgs::msg::Odometry odom_msg;
                 odom_msg.pose.pose.position.x = goal_info.x_pos;
                 odom_msg.pose.pose.position.y = goal_info.y_pos;
