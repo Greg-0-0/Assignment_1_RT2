@@ -88,6 +88,7 @@ namespace assignment1_rt2{
                 std::thread{std::bind(&NavigationActionServer::execute, this, _1), goal_handle}.detach();
             }
             
+            // Function to execute the action: rotate towards the goal, move towards the goal and rotate to the goal orientation
             void execute(const std::shared_ptr<GoalHandleNavigation> goal_handle){
 
                 const auto goal_id = goal_id_to_hex_string(goal_handle->get_goal_id());

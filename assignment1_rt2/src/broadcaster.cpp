@@ -31,6 +31,7 @@ namespace assignment1_rt2{
             stream << "/" << topic_name_.c_str();
             std::string topic = stream.str();
 
+            // Define the callback function to handle incoming messages and publish the corresponding transform
             auto handle_pose = [this](const std::shared_ptr<const nav_msgs::msg::Odometry> msg){
                 geometry_msgs::msg::TransformStamped t;
 
