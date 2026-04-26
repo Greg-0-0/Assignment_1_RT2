@@ -1,88 +1,170 @@
 #  1st ASSIGNMENT of Research Track 2 
 
 
-This project consists in a ros2 application that allows to control a planar drone in a 3D environment. To move the drone, the user has to insert an angular and a linear velocity, then the application applies these values to the drone, moving it for one second. The application uses a simulator called Gazebo to represent the 3D space, while the model of the robot is provided by the tool Rviz. Moreover, the Rviz framework allows to identify eventual obstacles inside the environmnet, making possible to avoid them while guiding the drone. Indeed, if the drone gets closer than a certain threshold to an obstacle, after the second of movement elapses, its motion gets reversed until it reaches the safe area, farther away than the threshold. However, the drone gets stopped during motion if it gets too close to an obstacle (beyond the threshold), surpassing a second limit, this prevents the drone from colliding with obstacles. The threhsold can be changed at runtime thanks to a specific service, while the smaller limit is fixed. The application also provides the possibility to compute the average of the last five velocities inserted by the user, as well as obtaining information relative to the closest obstacle to the drone, like its relative direction and distance from the drone.
+This project is a ROS 2 application that lets a user send navigation goals to a robot through an action interface. The physic simulator used is Gazebo, thus, to correctly use the application, it's necessary to install the github repository https://github.com/CarmineD8/bme_gazebo_sensors.
+The user can:
 
-# Packages
-- assignmnet2_rt:                main package where the movement logic and the obstacle avoidance are implemented
-- assignment2_rt_interfaces:     provides the services to update the threshold, compute the averages and the custom data structure for the drone information
-- assignment2_rt_bringup:        allows to conveniently start the application without running the single executables separately
-- bme_gazebo_sensors:            implements the 3D envirnoment and the Rviz tool for the drone representation [not implemented in this project, but necessary for the functioning of the application]
+- send a new goal (x, y, theta)
+- cancel the currently running goal
+- quit the application
 
-# Executables
-assingmnet2_rt:
-- ui_node ->            manages the user input moving the drone, and prevents eventual collisions with the obstacles using the information provided by the distance_node
-- distance_node ->      computes the collision condition using the provided threshold, and shares with the ui_node the information of the closest obstacle
-assinbgmnet2_rt_interfaces:
-- threshol_change_service ->     handles the request to update the threshold
-- velocity_averages_service ->   handles the request to compute the velocities average
-assignment2_rt_bringup:
-- launcher.launch.py ->   starts all the executables from a single command
+The architecture is split into two packages:
 
-# Topics
-Default topics:
-- /scan (provided by Gazebo)
-- /cmd-vel (provided by Gazebo)
+- assignment_1_rt2: application nodes (user interface, action client, action server, TF broadcasters, launch file)
+- assignment_1_rt2_interfaces: custom ROS 2 interfaces (message + action)
 
-Custom topics:
-- collision_condition: used by the distance_node to inform the ui_node if the drone overcame the threshold or the smaller limit
-- obstacle_info: used by the distance_node to send the information of the closest obstacle to the ui_node
-- update_threhsold: used by the corresponding service to notify the distance_node of the update
+## Package Structure
 
-# Interfaces
-- update_threhsold: service to change the threshold value upon request of the ui_node
-- velocity_averages: service to compute the velocities average upon request of the ui_node
-- ObstacleInfo:  custom message used by the distance_node to represent the information of the closest obstacle and share them with the ui_node
+### assignment_1_rt2
 
-# Requirements
-- ros2 framework
+Main logic and runtime nodes:
 
-# Instructions to run
-First download the files and directories from GitHub into your ros2 workspace.  
-Then in a ros2 terminal run:
-1. colcon build ->                      executed in workspace directory to compile the package
-2. source local_setup.bash ->           run inside install/ folder
-3. ros2 launch assingment2_rt_bringup launcher.launch.py ->  to execute the application (only one terminal necessary)
+- src/user_interface.cpp
+- src/action_client.cpp
+- src/action_server.cpp
+- src/broadcaster.cpp
+- launch/launcher.launch.py
 
-# Instructions to use
-Initially, the application waits a couple of seconds the ensure all the topics are correctly communicating.  
-Follow the textual interface selecting an option:
+### assignment_1_rt2_interfaces
 
-1 move the drone:
-  - insert an angular velocity
-  - insert a linear velocity
-2. update threshold  
-3. compute velocity averages  
-4. obtain closest obstacle information  
+Custom interfaces:
 
-# Functions
-Distance.cpp:
-- topic_callback1: retrieves the obstacles distances from the topic "/scan"
-- topic_callback2: retrieves the newly updated threhdold from the topic "obstacle_info"
-- main_loop: computes distance between two turtles, publishing them to ui_node, and prints info on closest obstacle
+- msg/UserMsg.msg
+- action/Navigation.action
 
-UI.cpp:
-- initialization: delays the start of the applicatio to ensure all topics are properly working
-- main_loop: implements the main function from which all the other functions gets called directly or indirectly
-- user_input: displays textual interface to choose an option
-- rotate_turtle: applies angular velocity for one second (stopped by timer_callback1)
-- timer_callback1: stops the rotation after one second (called by rotate_turtle)
-- threhdold_request: sends request to threshold_change_service for new threshold value
-- velocity_averages_request: sends request to velocity_averages_service for velocity averages computation
-- move_turtle_x:  moves the drone for one second (stopped by timer_callback2)
-- timer_callback2: stops the translation (calls stop_linear_motion) after one second (called by move_turtle_x) and eventually applies a revers movement if the threshold has been overcame (exeuted by start_backward_motion)
-- start_backward_motion: starts backward motion after robot has stopped (called by timer_callback2) (stopped by timer_callback3)
-- timer_callback3: stops turtle translation for position restoration
-- topic_callback1: receives condition relative to distance between the drone and obstacles in real time from the topic "collisin_condition"
-- topic_callback2: receives obstacle info from Distance node from the topic "obstacle_info"
+## Nodes and Responsibilities
 
-threhsold_update_service:
-- handle_service: handles the request to update the threshold
+### user_interface (standalone node)
 
-velocity_averages_service:
-- handle_service: handles the request to compute the velocities average
-  
-# Author
+Reads terminal input and publishes commands on topic user_msg:
+
+- g: send a navigation goal (x, y, theta)
+- c: cancel current goal
+- q: quit
+
+### NavigationActionClient (component)
+
+- Subscribes to user_msg
+- Sends goals to action server navigation
+- Cancels active goals when requested
+- Publishes goal pose as nav_msgs/Odometry on topic goal_frame
+- Logs action feedback and final result
+
+### NavigationActionServer (component)
+
+- Provides action server navigation
+- Subscribes to odom for robot state
+- Publishes cmd_vel commands to move the robot in three stages:
+  1. rotate toward target position
+  2. move toward target position
+  3. rotate to target orientation
+- Handles cancel requests and returns remaining errors in action result
+
+### FramePublisher (component, instantiated twice)
+
+Generic TF broadcaster node parameterized by topic_name:
+
+- topic_name=goal_frame: broadcasts goal transform
+- topic_name=odom: broadcasts robot transform
+
+## Interfaces
+
+### assignment_1_rt2_interfaces/msg/UserMsg.msg
+
+- float32 x_pos
+- float32 y_pos
+- float32 theta
+- string msg
+
+### assignment_1_rt2_interfaces/action/Navigation.action
+
+Goal:
+
+- float32 goal_x
+- float32 goal_y
+- float32 goal_theta
+
+Result:
+
+- float32 delta_x
+- float32 delta_y
+- float32 delta_theta
+
+Feedback:
+
+- float32 remaining_x
+- float32 remaining_y
+- float32 remaining_theta
+
+## Topics and Action
+
+### Topics
+
+- user_msg (assignment_1_rt2_interfaces/msg/UserMsg): commands from UI to action client
+- goal_frame (nav_msgs/msg/Odometry): goal pose published by action client
+- odom (nav_msgs/msg/Odometry): robot odometry consumed by action server and TF broadcaster
+- cmd_vel (geometry_msgs/msg/Twist): velocity commands published by action server
+
+### Action
+
+- navigation (assignment_1_rt2_interfaces/action/Navigation)
+
+## Launch
+
+The launch file starts:
+
+- user_interface as a regular node
+- a component container with:
+  - NavigationActionServer
+  - NavigationActionClient
+  - FramePublisher for goal_frame
+  - FramePublisher for odom
+
+File path:
+
+- assignment_1_rt2/launch/launcher.launch.py
+
+## Requirements
+
+- ROS 2 Jazzy(tested in a ROS 2 workspace)
+- colcon
+- an external simulator or robot stack that provides odom and consumes cmd_vel
+- xterm (used by launch prefixes in launcher.launch.py)
+
+## Build and Run
+
+From your ROS 2 workspace root (for example ~/Documents/ros2_ws):
+
+1. Build:
+
+   colcon build
+
+2. Source the workspace in 2 different terminals:
+
+   cd install/
+   source local_setup.bash
+   
+3. Launch Gazebo in the first terminal:
+
+    ros2 launch bme_gazebo_sensors spawn_robot_ex.launch.py
+
+3. Launch the system in the second terminal:
+
+   ros2 launch assignment_1_rt2 launcher.launch.py
+
+## How to Use
+
+When prompted by the user interface, enter one of the following:
+
+- x y theta (example: 2.0 1.5 1.57) to send a new goal
+- c to cancel the current goal
+- q to quit
+
+Behavior notes:
+
+- Sending a new goal while one is active triggers a cancel of the current goal, then sends the new goal.
+- Cancel and quit requests are forwarded by the action client to the action server.
+
+## Author
+
 Daneri Gregorio
-
-# -----------> Have fun!!! <-----------
